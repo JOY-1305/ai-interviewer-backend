@@ -1,11 +1,13 @@
 from sqlalchemy import (
     Column,
+    DateTime,
     Integer,
     String,
     Text,
     ForeignKey,
     Enum,
     JSON,
+    func,
 )
 from sqlalchemy.orm import relationship
 import enum
@@ -77,3 +79,13 @@ class InterviewAnswer(Base):
 
     interview = relationship("Interview", back_populates="answers")
     question = relationship("JobQuestion")
+
+
+class ContactLead(Base):
+    __tablename__ = "contact_leads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(150), nullable=False)
+    email = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

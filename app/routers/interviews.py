@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import uuid
 
+from app.utils.auth import admin_api_key
+
 from ..database import get_db
 from .. import models, schemas
 from ..services import interview_service
@@ -10,7 +12,7 @@ router = APIRouter(prefix="/interviews", tags=["interviews"])
 
 
 @router.post("/", response_model=schemas.InterviewOut)
-def create_interview(interview_in: schemas.InterviewCreate, db: Session = get_db()):
+def create_interview(interview_in: schemas.InterviewCreate, db: Session = Depends(get_db)):
     job = db.query(models.Job).filter(models.Job.id == interview_in.job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -29,7 +31,7 @@ def create_interview(interview_in: schemas.InterviewCreate, db: Session = get_db
 
 
 @router.post("/start/{invite_token}", response_model=schemas.InterviewStartResponse)
-def start_interview(invite_token: str, db: Session = get_db()):
+def start_interview(invite_token: str, db: Session = Depends(get_db)):
     interview = (
         db.query(models.Interview)
         .filter(models.Interview.invite_token == invite_token)
@@ -59,7 +61,7 @@ def start_interview(invite_token: str, db: Session = get_db()):
 def submit_answer(
     interview_id: int,
     payload: schemas.AnswerSubmit,
-    db: Session = get_db(),
+    db: Session = Depends(get_db),
 ):
     interview = db.query(models.Interview).get(interview_id)
     if not interview:
@@ -98,7 +100,7 @@ def submit_answer(
 
 
 @router.get("/{interview_id}/summary", response_model=schemas.InterviewSummaryOut)
-def get_interview_summary(interview_id: int, db: Session = get_db()):
+def get_interview_summary(interview_id: int, db: Session = Depends(get_db)):
     interview = db.query(models.Interview).get(interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
@@ -113,4 +115,42 @@ def get_interview_summary(interview_id: int, db: Session = get_db()):
         overall_commentary=summary["overall_commentary"],
         average_score=summary["average_score"],
         competency_summary=summary["competency_summary"],
+    )
+
+@router.get("/job/{job_id}", dependencies=[Depends(admin_api_key)])
+def list_interviews(job_id: int, db: Session = Depends(get_db)):
+    job = db.query(models.Job).get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+
+    interviews = db.query(models.Interview).filter_by(job_id=job_id).all()
+    return interviews
+
+@router.get("/{interview_id}/detail", response_model=schemas.InterviewDetail, dependencies=[Depends(admin_api_key)])
+def get_interview_detail(interview_id: int, db: Session = Depends(get_db)):
+    interview = db.query(models.Interview).get(interview_id)
+    if not interview:
+        raise HTTPException(404, "Interview not found")
+
+    answer_details = []
+    for ans in interview.answers:
+        answer_details.append(
+            schemas.InterviewAnswerDetail(
+                id=ans.id,
+                question_text=ans.question.text,
+                answer_text=ans.answer_text,
+                score=ans.score,
+                competency_scores=ans.competency_scores,
+                ai_feedback=ans.ai_feedback,
+            )
+        )
+
+    return schemas.InterviewDetail(
+        id=interview.id,
+        candidate_name=interview.candidate_name,
+        candidate_email=interview.candidate_email,
+        status=interview.status.value,
+        job_title=interview.job.title,
+        answers=answer_details,
+        summary=interview.summary,
     )

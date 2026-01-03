@@ -95,3 +95,36 @@ class InterviewSummaryOut(BaseModel):
     overall_commentary: str
     average_score: float
     competency_summary: Dict[str, float]
+
+
+class InterviewAnswerDetail(BaseModel):
+    id: int
+    question_text: str
+    answer_text: str
+    score: Optional[int]
+    competency_scores: Optional[dict]
+    ai_feedback: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class InterviewDetail(BaseModel):
+    id: int
+    candidate_name: str
+    candidate_email: EmailStr
+    status: str
+    job_title: str
+    answers: List[InterviewAnswerDetail]
+    summary: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
+
+class ContactCreate(BaseModel):
+    name: str
+    email: EmailStr
+    message: str
+
+class ContactOut(BaseModel):
+    ok: bool
