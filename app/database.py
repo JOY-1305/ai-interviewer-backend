@@ -1,26 +1,27 @@
-import os
+# app/database.py
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from .config import settings
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    # Local dev fallback ONLY
-    DATABASE_URL = "postgresql://postgres:supercharger@localhost:5432/ai_interviewer"
-
-# Render sometimes provides postgres:// which SQLAlchemy dislikes
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
+# Create SQLAlchemy engine using DATABASE_URL from environment
+# pool_pre_ping helps avoid "stale connection" issues in managed DBs like Neon/Render
 engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,  # avoids stale connections
+    settings.DATABASE_URL,
+    pool_pre_ping=True,
 )
 
+# Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Base for models
 Base = declarative_base()
 
+
 def get_db():
+    """
+    FastAPI dependency that provides a SQLAlchemy session and ensures it closes.
+    Use as: db: Session = Depends(get_db)
+    """
     db = SessionLocal()
     try:
         yield db
