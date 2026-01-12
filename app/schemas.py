@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional, Dict
 from enum import Enum
 
@@ -128,3 +128,26 @@ class ContactCreate(BaseModel):
 
 class ContactOut(BaseModel):
     ok: bool
+
+class UserCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=200)
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+
+class UserOut(BaseModel):
+    id: int
+    name: str
+    email: EmailStr
+    role: str
+
+    class Config:
+        from_attributes = True  # for SQLAlchemy model -> schema
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
