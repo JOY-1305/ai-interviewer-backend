@@ -7,6 +7,7 @@ from .routers import admin
 from app.middleware.rate_limit import RateLimitMiddleware
 from .routers import auth
 from .routers import portal
+from .routers import candidate
 
 app = FastAPI()
 
@@ -28,7 +29,7 @@ app.include_router(public_router)
 app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(portal.router)
-
+app.include_router(candidate.router)
 
 @app.on_event("startup")
 def on_startup():

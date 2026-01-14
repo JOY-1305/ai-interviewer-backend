@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import uuid
 
-from app.utils.auth import admin_api_key
+from ..deps_admin import require_admin
+
 
 from ..database import get_db
 from .. import models, schemas
 from ..services import interview_service
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
 
@@ -117,40 +119,57 @@ def get_interview_summary(interview_id: int, db: Session = Depends(get_db)):
         competency_summary=summary["competency_summary"],
     )
 
-@router.get("/job/{job_id}", dependencies=[Depends(admin_api_key)])
-def list_interviews(job_id: int, db: Session = Depends(get_db)):
-    job = db.query(models.Job).get(job_id)
+
+@router.get("/job/{job_id}")
+def list_interviews(
+    job_id: int,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(require_admin),
+):
+    job = db.query(models.Job).filter(models.Job.id == job_id).first()
     if not job:
-        raise HTTPException(404, "Job not found")
+        raise HTTPException(status_code=404, detail="Job not found")
 
-    interviews = db.query(models.Interview).filter_by(job_id=job_id).all()
-    return interviews
+    return db.query(models.Interview).filter(models.Interview.job_id == job_id).all()
 
-@router.get("/{interview_id}/detail", response_model=schemas.InterviewDetail, dependencies=[Depends(admin_api_key)])
-def get_interview_detail(interview_id: int, db: Session = Depends(get_db)):
-    interview = db.query(models.Interview).get(interview_id)
+
+@router.get("/{interview_id}/detail", response_model=schemas.AdminInterviewDetailOut)
+def get_interview_detail(
+    interview_id: int,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(require_admin),
+):
+    interview = db.query(models.Interview).filter(models.Interview.id == interview_id).first()
     if not interview:
-        raise HTTPException(404, "Interview not found")
+        raise HTTPException(status_code=404, detail="Interview not found")
+    return interview
 
-    answer_details = []
+@router.post("/{interview_id}/complete", response_model=schemas.InterviewCompleteOut)
+def complete_interview(interview_id: int, db: Session = Depends(get_db)):
+    interview = db.query(models.Interview).filter(models.Interview.id == interview_id).first()
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+
+    if interview.status != models.InterviewStatus.COMPLETED:
+        raise HTTPException(status_code=400, detail="Interview not completed yet")
+
+    # Build transcript from answers
+    lines = []
     for ans in interview.answers:
-        answer_details.append(
-            schemas.InterviewAnswerDetail(
-                id=ans.id,
-                question_text=ans.question.text,
-                answer_text=ans.answer_text,
-                score=ans.score,
-                competency_scores=ans.competency_scores,
-                ai_feedback=ans.ai_feedback,
-            )
-        )
+        q = ans.question.text if ans.question else f"Question {ans.question_id}"
+        lines.append(f"Q: {q}\nA: {ans.answer_text}\n")
 
-    return schemas.InterviewDetail(
-        id=interview.id,
-        candidate_name=interview.candidate_name,
-        candidate_email=interview.candidate_email,
-        status=interview.status.value,
-        job_title=interview.job.title,
-        answers=answer_details,
-        summary=interview.summary,
+    transcript = "\n".join(lines).strip()
+
+    interview.transcript = transcript
+    interview.completed_at = interview.completed_at or datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(interview)
+
+    return schemas.InterviewCompleteOut(
+        interview_id=interview.id,
+        status=interview.status,
+        transcript=interview.transcript or "",
+        summary=None,
+        overall_score=interview.overall_score,
     )

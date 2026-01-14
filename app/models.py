@@ -46,25 +46,6 @@ class JobQuestion(Base):
     job = relationship("Job", back_populates="questions")
 
 
-class Interview(Base):
-    __tablename__ = "interviews"
-
-    id = Column(Integer, primary_key=True, index=True)
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
-    candidate_name = Column(String(255), nullable=False)
-    candidate_email = Column(String(255), nullable=False)
-    status = Column(Enum(InterviewStatus), default=InterviewStatus.NOT_STARTED)
-    current_question_index = Column(Integer, nullable=False, default=0)
-    invite_token = Column(String(255), unique=True, index=True, nullable=False)
-
-    job = relationship("Job", back_populates="interviews")
-    answers = relationship(
-        "InterviewAnswer",
-        back_populates="interview",
-        cascade="all, delete-orphan",
-    )
-
-
 class InterviewAnswer(Base):
     __tablename__ = "interview_answers"
 
@@ -99,5 +80,33 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(50), nullable=False, default="user")  # "user" | "admin"
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    interviews = relationship("Interview", back_populates="candidate", foreign_keys="Interview.candidate_user_id")
+
+class Interview(Base):
+    __tablename__ = "interviews"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+
+    candidate_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+
+    candidate_name = Column(String(255), nullable=False)
+    candidate_email = Column(String(255), nullable=False)
+
+    status = Column(Enum(InterviewStatus), default=InterviewStatus.NOT_STARTED)
+    current_question_index = Column(Integer, nullable=False, default=0)
+    invite_token = Column(String(255), unique=True, index=True, nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    transcript = Column(Text, nullable=True)
+    summary = Column(Text, nullable=True)
+    overall_score = Column(Integer, nullable=True)
+
+    job = relationship("Job", back_populates="interviews")
+    candidate = relationship("User", foreign_keys=[candidate_user_id])
+    answers = relationship("InterviewAnswer", back_populates="interview", cascade="all, delete-orphan")
