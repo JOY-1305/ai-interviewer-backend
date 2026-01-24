@@ -127,25 +127,29 @@ def admin_create_interview(
     db: Session = Depends(get_db),
     _admin: models.User = Depends(require_admin),
 ):
-    user = (
-    db.query(models.User)
-    .filter(models.User.email == payload.candidate_email.strip().lower())
-    .first()
-)
+    job = db.query(models.Job).filter(models.Job.id == payload.job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    email = str(payload.candidate_email).strip().lower()
+    user = db.query(models.User).filter(models.User.email == email).first()
+
     token = secrets.token_urlsafe(32)
+
     interview = models.Interview(
-    job_id=payload.job_id,
-    candidate_name=payload.candidate_name,
-    candidate_email=payload.candidate_email.strip().lower(),
-    candidate_user_id=user.id if user else None,
-    invite_token=token,
-    status=models.InterviewStatus.NOT_STARTED,
-    current_question_index=0,
-)
+        job_id=payload.job_id,
+        candidate_name=payload.candidate_name,
+        candidate_email=email,
+        candidate_user_id=user.id if user else None,
+        invite_token=token,
+        status=models.InterviewStatus.NOT_STARTED,
+        current_question_index=0,
+    )
     db.add(interview)
     db.commit()
     db.refresh(interview)
     return interview
+
 
 @router.get("/interviews/{interview_id}", response_model=schemas.AdminInterviewDetailOut)
 def admin_get_interview(

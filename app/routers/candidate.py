@@ -8,14 +8,11 @@ from .. import models, schemas
 
 router = APIRouter(prefix="/candidate", tags=["candidate"])
 
-
 @router.get("/interviews", response_model=schemas.CandidateInterviewListOut)
 def get_my_interviews(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    # Option B primary match: candidate_user_id
-    # Fallback: candidate_email (for older rows not backfilled yet)
     interviews = (
         db.query(models.Interview)
         .filter(
@@ -46,3 +43,28 @@ def get_my_interviews(
         )
 
     return {"interviews": out}
+
+
+@router.get("/dashboard", response_model=schemas.CandidateDashboardOut)
+def candidate_dashboard(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    qs = db.query(models.Interview).filter(
+        or_(
+            models.Interview.candidate_user_id == current_user.id,
+            models.Interview.candidate_email == current_user.email,
+        )
+    )
+
+    total = qs.count()
+    pending = qs.filter(models.Interview.status == models.InterviewStatus.NOT_STARTED).count()
+    in_progress = qs.filter(models.Interview.status == models.InterviewStatus.IN_PROGRESS).count()
+    completed = qs.filter(models.Interview.status == models.InterviewStatus.COMPLETED).count()
+
+    return {
+        "total": total,
+        "pending": pending,
+        "in_progress": in_progress,
+        "completed": completed,
+    }

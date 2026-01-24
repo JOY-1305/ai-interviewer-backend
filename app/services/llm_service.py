@@ -110,3 +110,69 @@ def summarise_interview(job_title: str, job_description: str, qa_list: List[Dict
     import json
 
     return json.loads(content)
+
+
+def build_followup_prompt(
+    base_question: str,
+    answer: str,
+    competencies: List[str],
+    scoring: Dict,
+    followup_round: int,
+) -> str:
+    comp_str = ", ".join(competencies) if competencies else "overall quality"
+    feedback = scoring.get("feedback", "")
+    overall = scoring.get("overall_score", 3)
+    comp_scores = scoring.get("competency_scores", {})
+
+    return f"""
+You are an expert interviewer conducting a REAL interview.
+
+Your job: ask ONE follow-up question based on the candidate's answer, to clarify, probe depth, or fix gaps.
+
+Context:
+Base interview question:
+\"\"\"{base_question}\"\"\"
+
+Candidate answer:
+\"\"\"{answer}\"\"\"
+
+Rubric competencies: {comp_str}
+Model scoring signals:
+- overall_score: {overall}
+- competency_scores: {comp_scores}
+- feedback: \"\"\"{feedback}\"\"\"
+
+Rules:
+- Ask exactly ONE follow-up question.
+- The follow-up must be natural and human, like a real interviewer.
+- It must be specific to the candidate’s answer (not generic).
+- Keep it short (max 1-2 sentences).
+- Do NOT provide scoring or feedback.
+- Do NOT mention that you are an AI.
+- This is follow-up round #{followup_round + 1} for this base question.
+
+Return ONLY valid JSON:
+{{
+  "followup_question": "<string>"
+}}
+"""
+
+
+def generate_followup_question(
+    base_question: str,
+    answer: str,
+    competencies: List[str],
+    scoring: Dict,
+    followup_round: int,
+) -> Dict:
+    prompt = build_followup_prompt(base_question, answer, competencies, scoring, followup_round)
+
+    resp = client.chat.completions.create(
+        model=settings.OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+    )
+
+    import json
+    content = resp.choices[0].message.content
+    return json.loads(content)

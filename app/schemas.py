@@ -117,9 +117,12 @@ class InterviewOut(BaseModel):
 
 
 class InterviewQuestionOut(BaseModel):
-    question_id: int
+    question_id: Optional[int] = None
     question_text: str
     competency: Optional[str] = None
+    is_followup: bool = False
+    followup_round: int = 0
+
 
 
 class InterviewStartResponse(BaseModel):
@@ -133,10 +136,14 @@ class AnswerSubmit(BaseModel):
 
 
 class AnswerScoringOut(BaseModel):
-    question_id: int
+    asked_question_text: str
+    is_followup: bool
+    followup_round: int
+
     score: Optional[int]
     competency_scores: Optional[Dict[str, int]]
     ai_feedback: Optional[str]
+
     next_question: Optional[InterviewQuestionOut] = None
     interview_status: InterviewStatus
 
@@ -211,19 +218,16 @@ class AdminInterviewDetailOut(AdminInterviewOut):
 
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Any, Optional, List
 
 class CandidateInterviewOut(BaseModel):
     id: int
     job_id: int
     job_title: Optional[str] = None
-
     candidate_name: str
     candidate_email: EmailStr
-
     status: InterviewStatus
     invite_token: str
-
     created_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -231,6 +235,11 @@ class CandidateInterviewOut(BaseModel):
     class Config:
         from_attributes = True
 
-
 class CandidateInterviewListOut(BaseModel):
     interviews: List[CandidateInterviewOut]
+
+class CandidateDashboardOut(BaseModel):
+    total: int
+    pending: int
+    in_progress: int
+    completed: int
