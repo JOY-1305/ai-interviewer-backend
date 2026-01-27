@@ -85,14 +85,16 @@ class JobQuestionMini(BaseModel):
     class Config:
         from_attributes = True
 
-class InterviewAnswerOut(BaseModel):
+class AdminInterviewAnswerOut(BaseModel):
     id: int
-    question_id: int
+    question_id: Optional[int] = None   
+    question_text: Optional[str] = None 
     answer_text: str
     score: Optional[int] = None
     competency_scores: Optional[dict] = None
     ai_feedback: Optional[str] = None
-    question: Optional[JobQuestionMini] = None
+    is_followup: Optional[bool] = False
+    followup_round: Optional[int] = 0
 
     class Config:
         from_attributes = True
@@ -162,11 +164,12 @@ class InterviewDetail(BaseModel):
     candidate_email: EmailStr
     status: InterviewStatus
     job_title: str
-    answers: List[InterviewAnswerOut]
-    summary: Optional[Any] = None  # keep flexible for now
+    answers: List[AdminInterviewAnswerOut]
+    summary: Optional[Any] = None
 
     class Config:
         from_attributes = True
+
 
 class ContactCreate(BaseModel):
     name: str
@@ -207,14 +210,29 @@ class AdminInterviewOut(InterviewOut):
     summary: Optional[Any] = None
     overall_score: Optional[int] = None
 
-class AdminInterviewDetailOut(AdminInterviewOut):
-    answers: List[InterviewAnswerOut] = []
+class AdminInterviewDetailOut(BaseModel):
+    id: int
+    job_id: int
+    candidate_name: str
+    candidate_email: EmailStr
+    status: InterviewStatus
+    current_question_index: int
+    invite_token: str
+
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    transcript: Optional[str] = None
+    summary: Optional[Any] = None
+    overall_score: Optional[int] = None
+
+    answers: List[AdminInterviewAnswerOut] = []
+
+    class Config:
+        from_attributes = True
 
 class JobDetailOut(JobOut):
     pass
 
-class AdminInterviewDetailOut(AdminInterviewOut):
-    answers: List[InterviewAnswerOut] = []
 
 
 from datetime import datetime
