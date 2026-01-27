@@ -80,7 +80,6 @@ class ContactLead(Base):
     message = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-
 class User(Base):
     __tablename__ = "users"
 
@@ -90,15 +89,27 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(String(50), nullable=False, default="user")  # "user" | "admin"
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    interviews = relationship("Interview", back_populates="candidate", foreign_keys="Interview.candidate_user_id")
+
+    interviews = relationship(
+        "Interview",
+        back_populates="candidate",
+        foreign_keys="Interview.candidate_user_id",
+    )
+
+
 
 class Interview(Base):
     __tablename__ = "interviews"
 
     id = Column(Integer, primary_key=True, index=True)
     job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+
     candidate_name = Column(String(255), nullable=False)
     candidate_email = Column(String(255), nullable=False)
+
+    # ✅ NEW: link interview to a registered user (optional)
+    candidate_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
     status = Column(Enum(InterviewStatus), default=InterviewStatus.NOT_STARTED)
     current_question_index = Column(Integer, nullable=False, default=0)
     invite_token = Column(String(255), unique=True, index=True, nullable=False)
@@ -117,6 +128,13 @@ class Interview(Base):
     max_followups_per_question = Column(Integer, nullable=False, default=2)
 
     job = relationship("Job", back_populates="interviews")
+
+    candidate = relationship(
+        "User",
+        back_populates="interviews",
+        foreign_keys=[candidate_user_id],
+    )
+
     answers = relationship(
         "InterviewAnswer",
         back_populates="interview",
