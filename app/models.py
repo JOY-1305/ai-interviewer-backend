@@ -107,7 +107,6 @@ class Interview(Base):
     candidate_name = Column(String(255), nullable=False)
     candidate_email = Column(String(255), nullable=False)
 
-    # ✅ NEW: link interview to a registered user (optional)
     candidate_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     status = Column(Enum(InterviewStatus), default=InterviewStatus.NOT_STARTED)
@@ -121,7 +120,6 @@ class Interview(Base):
     summary = Column(Text, nullable=True)
     overall_score = Column(Integer, nullable=True)
 
-    # NEW: adaptive follow-up state
     active_question_id = Column(Integer, ForeignKey("job_questions.id"), nullable=True)
     followup_round = Column(Integer, nullable=False, default=0)
     followup_question_text = Column(Text, nullable=True)
