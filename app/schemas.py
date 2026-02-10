@@ -95,6 +95,9 @@ class AdminInterviewAnswerOut(BaseModel):
     ai_feedback: Optional[str] = None
     is_followup: Optional[bool] = False
     followup_round: Optional[int] = 0
+    answer_meta: Optional[dict] = None
+    ai_suspect_score: Optional[int] = None
+    ai_suspect_reasons: Optional[dict] = None
 
     class Config:
         from_attributes = True
@@ -133,8 +136,31 @@ class InterviewStartResponse(BaseModel):
     next_question: Optional[InterviewQuestionOut] = None
 
 
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
+
 class AnswerSubmit(BaseModel):
     answer_text: str
+    answer_meta: Optional[Dict[str, Any]] = None
+
+
+from typing import Any
+
+class ProctorEventIn(BaseModel):
+    event_type: str
+    severity: int = 1
+    payload: Optional[dict] = None
+
+class ProctorEventOut(BaseModel):
+    id: int
+    interview_id: int
+    created_at: datetime
+    event_type: str
+    severity: int
+    payload: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
 
 
 class AnswerScoringOut(BaseModel):
@@ -218,6 +244,9 @@ class AdminInterviewDetailOut(BaseModel):
     status: InterviewStatus
     current_question_index: int
     invite_token: str
+    integrity_score: Optional[int] = None
+    integrity_flags: Optional[dict] = None
+    proctoring_version: Optional[str] = None
 
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

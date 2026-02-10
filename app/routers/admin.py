@@ -6,6 +6,9 @@ import secrets
 from ..database import get_db
 from .. import models, schemas
 from ..deps_admin import require_admin
+from sqlalchemy import desc
+from fastapi import BackgroundTasks
+from app.services.notification_service import send_candidate_invite
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -124,6 +127,7 @@ def admin_list_interviews(
 @router.post("/interviews", response_model=schemas.AdminInterviewOut)
 def admin_create_interview(
     payload: schemas.InterviewCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _admin: models.User = Depends(require_admin),
 ):
@@ -148,6 +152,13 @@ def admin_create_interview(
     db.add(interview)
     db.commit()
     db.refresh(interview)
+
+    background_tasks.add_task(
+    send_candidate_invite,
+    interview.candidate_email,
+    interview.invite_token,
+    job.title,
+)
     return interview
 
 
@@ -161,3 +172,19 @@ def admin_get_interview(
     if not interview:
         raise HTTPException(status_code=404, detail="Interview not found")
     return interview
+
+
+@router.get("/interviews/{interview_id}/proctoring", response_model=List[schemas.ProctorEventOut])
+def admin_get_proctoring_events(
+    interview_id: int,
+    db: Session = Depends(get_db),
+    _admin: models.User = Depends(require_admin),
+):
+    # Return newest first
+    return (
+        db.query(models.InterviewProctorEvent)
+        .filter(models.InterviewProctorEvent.interview_id == interview_id)
+        .order_by(desc(models.InterviewProctorEvent.created_at))
+        .limit(500)
+        .all()
+    )

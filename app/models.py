@@ -26,12 +26,20 @@ class Job(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
-    competencies = Column(JSON, nullable=True)  # e.g. ["communication","ownership"]
+    competencies = Column(JSON, nullable=True)
 
     questions = relationship(
-        "JobQuestion", back_populates="job", cascade="all, delete-orphan"
+        "JobQuestion",
+        back_populates="job",
+        cascade="all, delete-orphan",
     )
-    interviews = relationship("Interview", back_populates="job")
+
+    interviews = relationship(
+        "Interview",
+        back_populates="job",
+        cascade="all, delete-orphan",
+    )
+
 
 
 class JobQuestion(Base):
@@ -70,6 +78,13 @@ class InterviewAnswer(Base):
 
     interview = relationship("Interview", back_populates="answers")
     question = relationship("JobQuestion", foreign_keys=[question_id])
+    # NEW: answer metadata for anti-cheat signals (typing speed, paste, etc.)
+    answer_meta = Column(JSON, nullable=True)
+
+    # NEW: AI-generated suspicion (0-100) + reasons
+    ai_suspect_score = Column(Integer, nullable=True)
+    ai_suspect_reasons = Column(JSON, nullable=True)
+
     
 class ContactLead(Base):
     __tablename__ = "contact_leads"
@@ -124,7 +139,18 @@ class Interview(Base):
     followup_round = Column(Integer, nullable=False, default=0)
     followup_question_text = Column(Text, nullable=True)
     max_followups_per_question = Column(Integer, nullable=False, default=2)
+    # NEW: proctoring / integrity
+    integrity_score = Column(Integer, nullable=True)          # 0-100
+    integrity_flags = Column(JSON, nullable=True)            # {"tab_switches": 3, ...}
+    proctoring_version = Column(String(20), nullable=True)   # "v1"
+    job = relationship("Job", back_populates="interviews")
 
+    proctor_events = relationship(
+    "InterviewProctorEvent",
+    back_populates="interview",
+    cascade="all, delete-orphan",
+)
+        # --- relationships ---
     job = relationship("Job", back_populates="interviews")
 
     candidate = relationship(
@@ -138,3 +164,34 @@ class Interview(Base):
         back_populates="interview",
         cascade="all, delete-orphan",
     )
+
+    proctor_events = relationship(
+        "InterviewProctorEvent",
+        back_populates="interview",
+        cascade="all, delete-orphan",
+    )
+
+
+
+class InterviewProctorEvent(Base):
+    __tablename__ = "interview_proctor_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    interview_id = Column(
+        Integer,
+        ForeignKey("interviews.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    event_type = Column(String(64), nullable=False)   # TAB_HIDDEN, PASTE, FULLSCREEN_EXIT
+    severity = Column(Integer, nullable=False, default=1)  # 1=info,2=warn,3=critical
+    payload = Column(JSON, nullable=True)
+
+    interview = relationship("Interview", back_populates="proctor_events")
