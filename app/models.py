@@ -122,7 +122,7 @@ class Interview(Base):
     candidate_name = Column(String(255), nullable=False)
     candidate_email = Column(String(255), nullable=False)
 
-    candidate_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    candidate_user_id = Column(String, ForeignKey("users.id"), nullable=True)
 
     status = Column(Enum(InterviewStatus), default=InterviewStatus.NOT_STARTED)
     current_question_index = Column(Integer, nullable=False, default=0)
