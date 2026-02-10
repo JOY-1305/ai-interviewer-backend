@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from .. import models
 from .llm_service import score_answer, summarise_interview, generate_followup_question
+from .notification_service import notify_admin_interview_completed
 
 
 def get_next_question(job: models.Job, current_index: int) -> Optional[models.JobQuestion]:
@@ -62,12 +63,29 @@ def start_interview(db: Session, interview: models.Interview) -> Optional[models
 
 
 def submit_answer_and_get_next(
-    db: Session,
-    interview: models.Interview,
+    db,
+    interview_id: int,
     answer_text: str,
-) -> Dict[str, Any]:
-    job = interview.job
-    comp_list: List[str] = job.competencies or []
+    answer_meta: dict | None = None,
+):
+
+    interview = db.query(models.Interview).filter(models.Interview.id == interview_id).first()
+    if not interview:
+        raise ValueError("Interview not found")
+
+    job = db.query(models.Job).filter(models.Job.id == interview.job_id).first()
+    if not job:
+        raise ValueError("Job not found for interview")
+    
+    prev_status = interview.status
+
+    # Mark as started if first interaction
+    if interview.status == models.InterviewStatus.NOT_STARTED:
+        interview.status = models.InterviewStatus.IN_PROGRESS
+        if not interview.started_at:
+            interview.started_at = datetime.now(timezone.utc)
+
+    comp_list = job.competencies or []
 
     # Are we answering a follow-up right now?
     is_followup = bool(interview.followup_question_text)
@@ -81,6 +99,15 @@ def submit_answer_and_get_next(
         interview.completed_at = interview.completed_at or datetime.now(timezone.utc)
         db.add(interview)
         db.commit()
+        db.refresh(interview)
+
+        # Send completion notification exactly once
+        if prev_status != models.InterviewStatus.COMPLETED:
+            notify_admin_interview_completed(
+                interview.candidate_email,
+                job.title or "Interview",
+            )
+
         return {
             "answer": None,
             "next_question": None,
@@ -91,19 +118,35 @@ def submit_answer_and_get_next(
             "followup_round": 0,
         }
 
+
     base_question_text = spine_q.text if spine_q else ""
     asked_question_text = interview.followup_question_text if is_followup else base_question_text
 
     # Store the answer row
     db_answer = models.InterviewAnswer(
-        interview_id=interview.id,
-        question_id=None if is_followup else (spine_q.id if spine_q else None),
-        question_text=asked_question_text,
-        is_followup=1 if is_followup else 0,
-        parent_question_id=(spine_q.id if (is_followup and spine_q) else None),
-        followup_round=current_followup_round,
-        answer_text=answer_text,
-    )
+    interview_id=interview.id,
+    question_id=None if is_followup else (spine_q.id if spine_q else None),
+    question_text=asked_question_text,
+    is_followup=1 if is_followup else 0,
+    parent_question_id=(spine_q.id if (is_followup and spine_q) else None),
+    followup_round=current_followup_round,
+    answer_text=answer_text,
+    answer_meta=answer_meta or None,
+)
+
+
+    # If you added these columns in your DB/model, store them:
+    if hasattr(db_answer, "question_text"):
+        db_answer.question_text = asked_question_text
+    if hasattr(db_answer, "is_followup"):
+        db_answer.is_followup = 1 if is_followup else 0
+    if hasattr(db_answer, "parent_question_id"):
+        db_answer.parent_question_id = spine_q.id if (is_followup and spine_q) else None
+    if hasattr(db_answer, "followup_round"):
+        db_answer.followup_round = current_followup_round
+    if hasattr(db_answer, "answer_meta"):
+        db_answer.answer_meta = answer_meta or None
+
     db.add(db_answer)
     db.commit()
     db.refresh(db_answer)
@@ -127,7 +170,6 @@ def submit_answer_and_get_next(
     next_q: Any = None
 
     if needs_followup:
-        # Ask LLM to generate one follow-up question
         followup_payload = generate_followup_question(
             base_question=base_question_text,
             answer=answer_text,
@@ -137,16 +179,13 @@ def submit_answer_and_get_next(
         )
         followup_text = (followup_payload.get("followup_question") or "").strip()
         if not followup_text:
-            # fallback (shouldn't happen, but safe)
             followup_text = "Can you clarify that further with a specific example and the outcome?"
 
         interview.followup_round = current_followup_round + 1 if is_followup else 1
         interview.followup_question_text = followup_text
-
         next_q = {"type": "FOLLOWUP", "text": followup_text, "round": interview.followup_round}
 
     else:
-        # Clear follow-up state and advance spine
         interview.followup_round = 0
         interview.followup_question_text = None
 
@@ -162,7 +201,11 @@ def submit_answer_and_get_next(
     db.add(interview)
     db.commit()
     db.refresh(interview)
-
+    if interview.status == models.InterviewStatus.COMPLETED and prev_status != models.InterviewStatus.COMPLETED:
+        notify_admin_interview_completed(
+            interview.candidate_email,
+            job.title or "Interview",
+        )
     return {
         "answer": db_answer,
         "next_question": next_q,

@@ -10,6 +10,12 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "").strip()
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip()
+    EMAIL_PROVIDER: str = os.getenv("EMAIL_PROVIDER", "sendgrid").strip()
+    SENDGRID_API_KEY: str | None = os.getenv("SENDGRID_API_KEY")
+    EMAIL_FROM: str = os.getenv("EMAIL_FROM", "jyotirmayp1305@gmail.com").strip()
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "https://uninvaded-nonconcentrically-pok.ngrok-free.dev").strip()
+    ADMIN_NOTIFY_EMAILS: str | None = os.getenv("ADMIN_NOTIFY_EMAILS")
+
 
     def __init__(self):
         # Normalize scheme for SQLAlchemy
